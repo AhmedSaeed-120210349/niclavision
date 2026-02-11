@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nicla Vision - Learning Dashboard</title>
+    <!-- MQTT.js library for WebSocket connection -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f172a;
+            min-height: 100vh;
+            color: #e2e8f0;
+        }
+
+        .navbar {
+            background: #1e293b;
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+        }
+
+        .navbar .logo {
+            font-size: 20px;
+            font-weight: 700;
+            color: #f8fafc;
+            letter-spacing: -0.5px;
+        }
+
+        .navbar .logo span {
+            color: #3b82f6;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 20px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+
+        .status-dot.active {
+            background: #22c55e;
+            box-shadow: 0 0 8px #22c55e;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .status-badge span {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .main-container {
+            padding: 32px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #f8fafc;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3b82f6;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .card {
+            background: #1e293b;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            padding: 24px;
+        }
+
+        .card-header {
+            font-size: 14px;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: #94a3b8;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px 14px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #f8fafc;
+            font-size: 14px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .form-group input:disabled,
+        .form-group select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .timer-section {
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        .timer-value {
+            font-size: 56px;
+            font-weight: 700;
+            font-family: 'Courier New', monospace;
+            color: #f8fafc;
+            letter-spacing: 2px;
+        }
+
+        .timer-label {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 8px;
+        }
+
+        .samples-section {
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        .samples-value {
+            font-size: 48px;
+            font-weight: 700;
+            color: #3b82f6;
+        }
+
+        .samples-label {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 8px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-primary:disabled {
+            background: #475569;
+            cursor: not-allowed;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            padding: 10px 16px;
+            font-size: 13px;
+        }
+
+        .btn-secondary:hover {
+            background: #334155;
+            color: #f8fafc;
+        }
+
+        .btn-success {
+            background: #22c55e;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #16a34a;
+        }
+
+        .config-list {
+            list-style: none;
+        }
+
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #334155;
+            font-size: 13px;
+        }
+
+        .config-item:last-child {
+            border-bottom: none;
+        }
+
+        .config-key {
+            color: #64748b;
+        }
+
+        .config-value {
+            color: #f8fafc;
+            font-weight: 500;
+        }
+
+        .config-value.true {
+            color: #22c55e;
+        }
+
+        .config-value.false {
+            color: #ef4444;
+        }
+
+        .message {
+            margin-top: 16px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .message.success {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid #22c55e;
+            color: #22c55e;
+            display: block;
+        }
+
+        .message.error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            display: block;
+        }
+
+        .message.info {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid #3b82f6;
+            color: #3b82f6;
+            display: block;
+        }
+
+        .refresh-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 12px;
+            gap: 10px;
+        }
+
+        .calculated-info {
+            background: #0f172a;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 16px;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        .calculated-info strong {
+            color: #3b82f6;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: transparent;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            background: #334155;
+        }
+
+        .tab.active {
+            background: #3b82f6;
+            border-color: #3b82f6;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .dashboard-grid .card:nth-child(3) {
+                grid-column: span 2;
+            }
+
+            .config-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 12px 16px;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .main-container {
+                padding: 16px;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-grid .card:nth-child(3) {
+                grid-column: span 1;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .timer-value {
+                font-size: 42px;
+            }
+
+            .samples-value {
+                font-size: 36px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="logo">Nicla<span>Vision</span></div>
+        <div class="status-badge">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Idle</span>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <!-- Learning Control Section -->
+        <div class="section-title">Learning Control</div>
+        <div class="dashboard-grid">
+            <!-- Configuration Card -->
+            <div class="card">
+                <div class="card-header">Data Collection</div>
+
+                <div class="form-group">
+                    <label for="phaseName">Phase Name</label>
+                    <input type="text" id="phaseName" placeholder="e.g., phase1" value="phase1">
+                </div>
+
+                <div class="form-group">
+                    <label for="learnTime">Learning Duration (minutes)</label>
+                    <input type="number" id="learnTime" placeholder="e.g., 10" value="10" min="1" max="60">
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-primary" id="startBtn" onclick="startLearning()" style="flex: 1;">
+                        Start Learning
+                    </button>
+                    <button class="btn btn-secondary" id="logBtn" onclick="startLogging()"
+                        style="flex: 1; background: #6366f1; border-color: #6366f1; color: white;">
+                        Start Logging
+                    </button>
+                </div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 8px;">
+                    Learning = triggers training after time ends | Logging = data collection only
+                </div>
+
+                <div class="message" id="message"></div>
+            </div>
+
+            <!-- Timer & Samples Card -->
+            <div class="card">
+                <div class="card-header">Live Monitoring</div>
+
+                <div class="timer-section">
+                    <div class="timer-value" id="timerDisplay">00:00</div>
+                    <div class="timer-label">Time Remaining</div>
+                </div>
+
+                <div class="samples-section">
+                    <div class="samples-value" id="samplesCount">0</div>
+                    <div class="samples-label">Samples Collected</div>
+                </div>
+
+                <div class="refresh-row">
+                    <button class="btn btn-secondary" onclick="refreshSamplesCount()">Refresh Count</button>
+                </div>
+            </div>
+
+            <!-- Firestore Status Card -->
+            <div class="card">
+                <div class="card-header">Firestore Status</div>
+
+                <ul class="config-list">
+                    <li class="config-item">
+                        <span class="config-key">Learn Flag</span>
+                        <span class="config-value" id="configLearnFlag">-</span>
+                    </li>
+                    <li class="config-item">
+                        <span class="config-key">Time</span>
+                        <span class="config-value" id="configTime">-</span>
+                    </li>
+                    <li class="config-item">
+                        <span class="config-key">Phase Name</span>
+                        <span class="config-value" id="configPhaseName">-</span>
+                    </li>
+                    <li class="config-item">
+                        <span class="config-key">Data Path</span>
+                        <span class="config-value" id="configDataPath">-</span>
+                    </li>
+                    <li class="config-item">
+                        <span class="config-key">StartLearn Flag</span>
+                        <span class="config-value" id="configStartLearn">-</span>
+                    </li>
+                </ul>
+
+                <div class="refresh-row">
+                    <button class="btn btn-secondary" onclick="refreshStatus()">Refresh Status</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration Section -->
+        <div class="section-title">Model & Spectrogram Configuration</div>
+        <div class="config-grid">
+            <!-- Training Parameters Card -->
+            <div class="card">
+                <div class="card-header">Training Parameters</div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Epochs</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="cfg_epochs_select" onchange="syncFromSelect('epochs')" style="flex: 1;">
+                                <option value="25">25</option>
+                                <option value="50" selected>50</option>
+                                <option value="75">75</option>
+                                <option value="100">100</option>
+                                <option value="150">150</option>
+                                <option value="200">200</option>
+                                <option value="custom">Custom...</option>
+                            </select>
+                            <input type="number" id="cfg_epochs" value="50" style="width: 80px;"
+                                onchange="syncFromInput('epochs')">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Batch Size</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="cfg_batch_size_select" onchange="syncFromSelect('batch_size')" style="flex: 1;">
+                                <option value="8">8</option>
+                                <option value="16">16</option>
+                                <option value="32" selected>32</option>
+                                <option value="64">64</option>
+                                <option value="128">128</option>
+                                <option value="custom">Custom...</option>
+                            </select>
+                            <input type="number" id="cfg_batch_size" value="32" style="width: 80px;"
+                                onchange="syncFromInput('batch_size')">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Learning Rate</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="cfg_learning_rate_select" onchange="syncFromSelect('learning_rate')"
+                                style="flex: 1;">
+                                <option value="0.0001">0.0001</option>
+                                <option value="0.0005">0.0005</option>
+                                <option value="0.001" selected>0.001</option>
+                                <option value="0.005">0.005</option>
+                                <option value="0.01">0.01</option>
+                                <option value="custom">Custom...</option>
+                            </select>
+                            <input type="number" id="cfg_learning_rate" value="0.001" step="0.0001" style="width: 80px;"
+                                onchange="syncFromInput('learning_rate')">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Threshold Percentile (%)</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="cfg_threshold_percentile_select"
+                                onchange="syncFromSelect('threshold_percentile')" style="flex: 1;">
+                                <option value="85">85%</option>
+                                <option value="90">90%</option>
+                                <option value="95" selected>95%</option>
+                                <option value="97">97%</option>
+                                <option value="99">99%</option>
+                                <option value="custom">Custom...</option>
+                            </select>
+                            <input type="number" id="cfg_threshold_percentile" value="95" min="1" max="99"
+                                style="width: 80px;" onchange="syncFromInput('threshold_percentile')">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Validation Split</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="cfg_validation_split_select" onchange="syncFromSelect('validation_split')"
+                                style="flex: 1;">
+                                <option value="0.10">10%</option>
+                                <option value="0.15" selected>15%</option>
+                                <option value="0.20">20%</option>
+                                <option value="0.25">25%</option>
+                                <option value="0.30">30%</option>
+                                <option value="custom">Custom...</option>
+                            </select>
+                            <input type="number" id="cfg_validation_split" value="0.15" step="0.01" min="0.01" max="0.5"
+                                style="width: 80px;" onchange="syncFromInput('validation_split')">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Hidden Dimension</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="cfg_hidden_dim_select" onchange="syncFromSelect('hidden_dim')" style="flex: 1;">
+                                <option value="32">32</option>
+                                <option value="64" selected>64</option>
+                                <option value="128">128</option>
+                                <option value="256">256</option>
+                                <option value="custom">Custom...</option>
+                            </select>
+                            <input type="number" id="cfg_hidden_dim" value="64" style="width: 80px;"
+                                onchange="syncFromInput('hidden_dim')">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Output Dimension (Embedding Size)</label>
+                    <div style="display: flex; gap: 8px;">
+                        <select id="cfg_output_dim_select" onchange="syncFromSelect('output_dim')" style="flex: 1;">
+                            <option value="16">16</option>
+                            <option value="32" selected>32</option>
+                            <option value="64">64</option>
+                            <option value="128">128</option>
+                            <option value="custom">Custom...</option>
+                        </select>
+                        <input type="number" id="cfg_output_dim" value="32" style="width: 80px;"
+                            onchange="syncFromInput('output_dim')">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Spectrogram Parameters Card -->
+            <div class="card">
+                <div class="card-header">Spectrogram Parameters</div>
+
+                <!-- Frame Length FIRST - others depend on it -->
+                <div class="form-group">
+                    <label>Frame Length (samples) - Choose First!</label>
+                    <div style="display: flex; gap: 8px;">
+                        <select id="cfg_frame_length_select" onchange="syncFromSelect('frame_length')" style="flex: 1;">
+                            <option value="256">256</option>
+                            <option value="480" selected>480</option>
+                            <option value="512">512</option>
+                            <option value="1024">1024</option>
+                            <option value="custom">Custom...</option>
+                        </select>
+                        <input type="number" id="cfg_frame_length" value="480" style="width: 80px;"
+                            onchange="syncFromInput('frame_length')" min="128" max="2048">
+                    </div>
+                    <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                        Choose this first - FFT Size and Frame Step depend on this value
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>FFT Size (≥ Frame Length)</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="cfg_fft_size_select" onchange="syncFromSelect('fft_size')" style="flex: 1;"
+                                disabled>
+                                <option value="">Choose Frame Length first</option>
+                            </select>
+                            <input type="number" id="cfg_fft_size" value="512" style="width: 80px;"
+                                onchange="syncFromInput('fft_size')" min="256" disabled>
+                        </div>
+                        <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                            Must be ≥ Frame Length
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Frame Step (≤ Frame Length)</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="cfg_frame_step_select" onchange="syncFromSelect('frame_step')" style="flex: 1;"
+                                disabled>
+                                <option value="">Choose Frame Length first</option>
+                            </select>
+                            <input type="number" id="cfg_frame_step" value="320" style="width: 100px;"
+                                onchange="syncFromInput('frame_step')" min="64" disabled>
+                        </div>
+                        <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                            Maximum = Frame Length
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Sample Rate (Hz) - Max 16000</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="cfg_sample_rate_select" onchange="syncFromSelect('sample_rate')"
+                                style="flex: 1;">
+                                <option value="8000">8000</option>
+                                <option value="16000" selected>16000</option>
+                                <option value="custom">Custom...</option>
+                            </select>
+                            <input type="number" id="cfg_sample_rate" value="16000" style="width: 100px;"
+                                onchange="syncFromInput('sample_rate')" min="1000" max="16000">
+                        </div>
+                        <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+                            Maximum allowed: 16000 Hz
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Number of Frequency Buckets</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="cfg_num_buckets_select" onchange="syncFromSelect('num_buckets')"
+                                style="flex: 1;">
+                                <option value="20">20</option>
+                                <option value="32">32</option>
+                                <option value="43" selected>43</option>
+                                <option value="64">64</option>
+                                <option value="128">128</option>
+                                <option value="custom">Custom...</option>
+                            </select>
+                            <input type="number" id="cfg_num_buckets" value="43" style="width: 80px;"
+                                onchange="syncFromInput('num_buckets')" min="10" max="256">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="calculated-info">
+                    <strong>Calculated Values:</strong><br>
+                    num_frames = <span id="calc_num_frames">49</span><br>
+                    input_size = <span id="calc_input_size">2107</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Save Config Button -->
+        <div style="margin-top: 20px; display: flex; gap: 16px;">
+            <button class="btn btn-success" onclick="saveConfig()" style="width: auto; padding: 14px 40px;">
+                Save Configuration to Firestore
+            </button>
+        </div>
+        <div class="message" id="configMessage" style="margin-top: 16px;"></div>
+    </div>
+
+    <script>
+        // ============================================
+        // FIREBASE CONFIGURATION
+        // ============================================
+        const FIREBASE_PROJECT_ID = "niclavision-bc8a7";
+        const FIREBASE_API_KEY = "AIzaSyBooDEFEp6KXLetGi_8okwCIw6mcMtWDNY";
+        const FIRESTORE_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+        const REALTIME_DB_URL = "https://niclavision-bc8a7-default-rtdb.firebaseio.com";
+        const SOUND_NAME = "sound_data";
+
+        // ============================================
+        // MQTT CONFIGURATION
+        // ============================================
+        const MQTT_BROKER = "ws://13.61.2.52:9001/mqtt";  // Back to original format
+        const MQTT_TOPIC_PUBLISH = "nicla/incoming";      // Topic to send commands TO Nicla
+        const MQTT_TOPIC_SUBSCRIBE = "nicla/outgoing";    // Topic to receive FROM Nicla
+
+        // MQTT Modes
+        const MODE_LEARNING = "Mode-Learning";
+        const MODE_LOGGING = "Mode-Logging";
+        const MODE_INFERENCE = "Mode-Inference";
+
+        let mqttClient = null;
+        let mqttConnected = false;
+
+        let timerInterval = null;
+        let remainingSeconds = 0;
+        let isLearning = false;
+        let isLoggingMode = false;  // true = logging only, false = learning (triggers training)
+
+        // ============================================
+        // MQTT FUNCTIONS
+        // ============================================
+        function connectMQTT() {
+            try {
+                console.log("Connecting to MQTT broker...");
+                mqttClient = mqtt.connect(MQTT_BROKER, {
+                    clientId: 'dashboard_' + Math.random().toString(16).substr(2, 8),
+                    username: 'Nutaa',
+                    password: '123456',
+                    reconnectPeriod: 5000,
+                    connectTimeout: 30000,  // Increased timeout
+                    keepalive: 60,
+                });
+
+                mqttClient.on('connect', function () {
+                    console.log('MQTT Connected!');
+                    mqttConnected = true;
+                    mqttClient.subscribe(MQTT_TOPIC_SUBSCRIBE, function (err) {
+                        if (!err) {
+                            console.log('Subscribed to:', MQTT_TOPIC_SUBSCRIBE);
+                        }
+                    });
+                    updateMQTTStatus(true);
+                });
+
+                mqttClient.on('message', function (topic, message) {
+                    console.log('MQTT Message:', topic, message.toString());
+                });
+
+                mqttClient.on('error', function (error) {
+                    console.error('MQTT Error:', error);
+                    mqttConnected = false;
+                    updateMQTTStatus(false);
+                });
+
+                mqttClient.on('close', function () {
+                    console.log('MQTT Disconnected');
+                    mqttConnected = false;
+                    updateMQTTStatus(false);
+                });
+
+            } catch (error) {
+                console.error('MQTT Connection Error:', error);
+                mqttConnected = false;
+            }
+        }
+
+        function sendMQTTMode(mode) {
+            if (mqttClient && mqttConnected) {
+                mqttClient.publish(MQTT_TOPIC_PUBLISH, mode, function (err) {
+                    if (err) {
+                        console.error('MQTT Publish Error:', err);
+                        showMessage(`Failed to send ${mode} to Nicla`, 'error');
+                    } else {
+                        console.log('MQTT Sent:', mode);
+                        showMessage(`Sent ${mode} to Nicla Vision`, 'info');
+                    }
+                });
+            } else {
+                console.warn('MQTT not connected, cannot send:', mode);
+                showMessage(`MQTT not connected. Mode: ${mode}`, 'error');
+            }
+        }
+
+        function updateMQTTStatus(connected) {
+            // You can add a visual indicator for MQTT status if needed
+            console.log('MQTT Status:', connected ? 'Connected' : 'Disconnected');
+        }
+
+        // ============================================
+        // CONFIG PARAMETERS
+        // ============================================
+        const CONFIG_FIELDS = [
+            'epochs', 'batch_size', 'learning_rate', 'threshold_percentile',
+            'validation_split', 'hidden_dim', 'output_dim',
+            'fft_size', 'frame_length', 'frame_step', 'num_buckets', 'sample_rate'
+        ];
+
+        // ============================================
+        // CALCULATED VALUES
+        // ============================================
+        function updateCalculatedValues() {
+            const sampleRate = parseInt(document.getElementById('cfg_sample_rate').value);
+            const frameLength = parseInt(document.getElementById('cfg_frame_length').value);
+            const frameStep = parseInt(document.getElementById('cfg_frame_step').value);
+            const numBuckets = parseInt(document.getElementById('cfg_num_buckets').value);
+
+            // Assuming 1 second of audio
+            const audioSamples = sampleRate;
+            const numFrames = Math.floor((audioSamples - frameLength) / frameStep) + 1;
+            const inputSize = numFrames * numBuckets;
+
+            document.getElementById('calc_num_frames').textContent = numFrames;
+            document.getElementById('calc_input_size').textContent = inputSize;
+        }
+
+        // Add event listeners for auto-calculation
+        ['cfg_sample_rate', 'cfg_frame_length', 'cfg_frame_step', 'cfg_num_buckets'].forEach(id => {
+            document.getElementById(id).addEventListener('change', updateCalculatedValues);
+        });
+
+        // ============================================
+        // SYNC FUNCTIONS (dropdown <-> text input)
+        // ============================================
+        function syncFromSelect(field) {
+            const select = document.getElementById('cfg_' + field + '_select');
+            const input = document.getElementById('cfg_' + field);
+
+            if (select.value !== 'custom') {
+                input.value = select.value;
+                updateCalculatedValues();
+
+                // If frame length changed, update dependent options
+                if (field === 'frame_length') {
+                    updateDependentOptions();
+                }
+            }
+        }
+
+        function updateDependentOptions() {
+            const frameLength = parseInt(document.getElementById('cfg_frame_length').value);
+
+            if (!frameLength || frameLength < 128) {
+                // Disable dependent fields if no valid frame length
+                document.getElementById('cfg_fft_size_select').disabled = true;
+                document.getElementById('cfg_fft_size').disabled = true;
+                document.getElementById('cfg_frame_step_select').disabled = true;
+                document.getElementById('cfg_frame_step').disabled = true;
+
+                // Reset to placeholder
+                document.getElementById('cfg_fft_size_select').innerHTML = '<option value="">Choose Frame Length first</option>';
+                document.getElementById('cfg_frame_step_select').innerHTML = '<option value="">Choose Frame Length first</option>';
+                return;
+            }
+
+            // Enable dependent fields
+            document.getElementById('cfg_fft_size_select').disabled = false;
+            document.getElementById('cfg_fft_size').disabled = false;
+            document.getElementById('cfg_frame_step_select').disabled = false;
+            document.getElementById('cfg_frame_step').disabled = false;
+
+            // Update FFT Size options (must be >= Frame Length)
+            const fftSelect = document.getElementById('cfg_fft_size_select');
+            const currentFFT = document.getElementById('cfg_fft_size').value;
+
+            fftSelect.innerHTML = '';
+            const fftOptions = [256, 512, 1024, 2048, 4096];
+            let validFFTFound = false;
+
+            fftOptions.forEach(size => {
+                if (size >= frameLength) {
+                    const option = document.createElement('option');
+                    option.value = size;
+                    option.textContent = size;
+                    fftSelect.appendChild(option);
+
+                    // Set first valid option as default if current is invalid
+                    if (!validFFTFound) {
+                        option.selected = true;
+                        document.getElementById('cfg_fft_size').value = size;
+                        validFFTFound = true;
+                    }
+                }
+            });
+
+            // Add custom option
+            const customFFT = document.createElement('option');
+            customFFT.value = 'custom';
+            customFFT.textContent = 'Custom...';
+            fftSelect.appendChild(customFFT);
+
+            // Update Frame Step options (must be <= Frame Length)
+            const stepSelect = document.getElementById('cfg_frame_step_select');
+            const currentStep = document.getElementById('cfg_frame_step').value;
+
+            stepSelect.innerHTML = '';
+            const stepOptions = [64, 128, 160, 240, 256, 320, 480, 512, 640, 1024];
+            let validStepFound = false;
+
+            stepOptions.forEach(step => {
+                if (step <= frameLength) {
+                    const option = document.createElement('option');
+                    option.value = step;
+                    option.textContent = step;
+                    stepSelect.appendChild(option);
+
+                    // Keep current value if valid, otherwise use reasonable default
+                    if (parseInt(currentStep) === step) {
+                        option.selected = true;
+                        validStepFound = true;
+                    }
+                }
+            });
+
+            // If current step is invalid, set to frameLength/2 or closest valid option
+            if (!validStepFound) {
+                const defaultStep = Math.min(frameLength, Math.max(frameLength / 2, 128));
+                const closestOption = stepOptions.filter(s => s <= frameLength).reduce((prev, curr) =>
+                    Math.abs(curr - defaultStep) < Math.abs(prev - defaultStep) ? curr : prev
+                );
+                document.getElementById('cfg_frame_step').value = closestOption;
+                stepSelect.value = closestOption;
+            }
+
+            // Add custom option
+            const customStep = document.createElement('option');
+            customStep.value = 'custom';
+            customStep.textContent = 'Custom...';
+            stepSelect.appendChild(customStep);
+        }
+
+        function syncFromInput(field) {
+            const select = document.getElementById('cfg_' + field + '_select');
+            const input = document.getElementById('cfg_' + field);
+            let value = parseInt(input.value);
+
+            // Validation rules
+            if (field === 'sample_rate') {
+                if (value > 16000) {
+                    value = 16000;
+                    input.value = value;
+                    showMessage('Sample Rate maximum is 16000 Hz', 'error');
+                }
+            }
+
+            if (field === 'fft_size') {
+                const frameLength = parseInt(document.getElementById('cfg_frame_length').value);
+                if (value < frameLength) {
+                    value = frameLength;
+                    input.value = value;
+                    showMessage(`FFT Size must be ≥ Frame Length (${frameLength})`, 'error');
+                }
+            }
+
+            if (field === 'frame_step') {
+                const frameLength = parseInt(document.getElementById('cfg_frame_length').value);
+                if (value > frameLength) {
+                    value = frameLength;
+                    input.value = value;
+                    showMessage(`Frame Step maximum is Frame Length (${frameLength})`, 'error');
+                }
+            }
+
+            if (field === 'frame_length') {
+                // When frame length changes, update dependent dropdown options
+                updateDependentOptions();
+            }
+
+            // Try to find matching option in select
+            let found = false;
+            for (let option of select.options) {
+                if (option.value === value.toString()) {
+                    select.value = value.toString();
+                    found = true;
+                    break;
+                }
+            }
+
+            // If not found, set to "Custom..."
+            if (!found) {
+                select.value = 'custom';
+            }
+
+            updateCalculatedValues();
+        }
+
+        function syncSelectFromValue(field, value) {
+            const select = document.getElementById('cfg_' + field + '_select');
+            const input = document.getElementById('cfg_' + field);
+
+            input.value = value;
+
+            // Try to find matching option in select
+            let found = false;
+            for (let option of select.options) {
+                if (option.value == value) {
+                    select.value = value;
+                    found = true;
+                    break;
+                }
+            }
+
+            // If not found, set to "Custom..."
+            if (!found) {
+                select.value = 'custom';
+            }
+        }
+
+        // ============================================
+        // FIRESTORE CONFIG FUNCTIONS
+        // ============================================
+        async function saveConfig() {
+            const configData = {};
+
+            CONFIG_FIELDS.forEach(field => {
+                const el = document.getElementById('cfg_' + field);
+                const value = parseFloat(el.value);
+                configData[field] = { doubleValue: value };
+            });
+
+            const url = `${FIRESTORE_URL}/Learning/Config?key=${FIREBASE_API_KEY}`;
+
+            try {
+                const response = await fetch(url, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fields: configData })
+                });
+
+                if (response.ok) {
+                    showConfigMessage('Configuration saved to Firestore!', 'success');
+                } else {
+                    showConfigMessage('Failed to save configuration', 'error');
+                }
+            } catch (error) {
+                console.error('Save config error:', error);
+                showConfigMessage('Error saving configuration: ' + error.message, 'error');
+            }
+        }
+
+        async function loadConfig() {
+            const url = `${FIRESTORE_URL}/Learning/Config?key=${FIREBASE_API_KEY}`;
+
+            try {
+                const response = await fetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    const fields = data.fields || {};
+
+                    CONFIG_FIELDS.forEach(field => {
+                        if (fields[field]) {
+                            const value = fields[field].doubleValue || fields[field].integerValue || 0;
+                            syncSelectFromValue(field, value);
+                        }
+                    });
+
+                    updateCalculatedValues();
+                    showConfigMessage('Configuration loaded from Firestore!', 'success');
+                } else {
+                    showConfigMessage('Failed to load configuration', 'error');
+                }
+            } catch (error) {
+                console.error('Load config error:', error);
+                showConfigMessage('Error loading configuration: ' + error.message, 'error');
+            }
+        }
+
+        function showConfigMessage(text, type) {
+            const msg = document.getElementById('configMessage');
+            msg.textContent = text;
+            msg.className = `message ${type}`;
+            setTimeout(() => { msg.className = 'message'; }, 5000);
+        }
+
+        // ============================================
+        // FIRESTORE LEARNING FUNCTIONS
+        // ============================================
+        async function updateFirestore(learnFlag, time, phaseName, startLearn = null) {
+            const url = `${FIRESTORE_URL}/Learning/Data?key=${FIREBASE_API_KEY}`;
+
+            const fields = {
+                LearnFlag: { booleanValue: learnFlag },
+                Time: { integerValue: time.toString() },
+                phase_name: { stringValue: phaseName },
+                sound_name: { stringValue: SOUND_NAME }
+            };
+
+            if (startLearn !== null) {
+                fields.StartLearn = { booleanValue: startLearn };
+            }
+
+            try {
+                const response = await fetch(url, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fields })
+                });
+                return response.ok;
+            } catch (error) {
+                console.error('Firestore error:', error);
+                return false;
+            }
+        }
+
+        async function readFirestore() {
+            const url = `${FIRESTORE_URL}/Learning/Data?key=${FIREBASE_API_KEY}`;
+
+            try {
+                const response = await fetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    const fields = data.fields || {};
+                    return {
+                        learnFlag: fields.LearnFlag?.booleanValue || false,
+                        time: parseInt(fields.Time?.integerValue || '0'),
+                        phaseName: fields.phase_name?.stringValue || '',
+                        soundName: fields.sound_name?.stringValue || '',
+                        startLearn: fields.StartLearn?.booleanValue || false
+                    };
+                }
+            } catch (error) {
+                console.error('Firestore read error:', error);
+            }
+            return null;
+        }
+
+        // ============================================
+        // REALTIME DATABASE FUNCTIONS
+        // ============================================
+        async function getSamplesCount() {
+            const phaseName = document.getElementById('phaseName').value.trim() || 'phase1';
+            const dataPath = `${phaseName}_${SOUND_NAME}`;
+            const url = `${REALTIME_DB_URL}/${dataPath}.json?shallow=true`;
+
+            try {
+                const response = await fetch(url);
+                if (response.ok) {
+                    const data = await response.json();
+                    return data === null ? 0 : Object.keys(data).length;
+                }
+            } catch (error) {
+                console.error('Realtime DB read error:', error);
+            }
+            return 0;
+        }
+
+        async function refreshSamplesCount() {
+            const count = await getSamplesCount();
+            document.getElementById('samplesCount').textContent = count;
+        }
+
+        // ============================================
+        // UI FUNCTIONS
+        // ============================================
+        function showMessage(text, type) {
+            const msg = document.getElementById('message');
+            msg.textContent = text;
+            msg.className = `message ${type}`;
+        }
+
+        function updateTimerDisplay(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            document.getElementById('timerDisplay').textContent =
+                `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function setLearningState(learning, loggingMode = false) {
+            isLearning = learning;
+            isLoggingMode = loggingMode;
+            const btn = document.getElementById('startBtn');
+            const logBtn = document.getElementById('logBtn');
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            const inputs = document.querySelectorAll('#phaseName, #learnTime');
+
+            if (learning) {
+                if (loggingMode) {
+                    // Logging mode
+                    btn.textContent = 'Start Learning';
+                    btn.className = 'btn btn-primary';
+                    btn.disabled = true;
+                    logBtn.textContent = 'Stop Logging';
+                    logBtn.style.background = '#ef4444';
+                    logBtn.style.borderColor = '#ef4444';
+                    logBtn.onclick = stopLogging;
+                    statusText.textContent = 'Logging';
+                } else {
+                    // Learning mode
+                    btn.textContent = 'Stop Learning';
+                    btn.className = 'btn btn-danger';
+                    btn.onclick = stopLearning;
+                    btn.disabled = false;
+                    logBtn.textContent = 'Start Logging';
+                    logBtn.style.background = '#6366f1';
+                    logBtn.style.borderColor = '#6366f1';
+                    logBtn.disabled = true;
+                    statusText.textContent = 'Learning';
+                }
+                statusDot.classList.add('active');
+                inputs.forEach(input => input.disabled = true);
+            } else {
+                btn.textContent = 'Start Learning';
+                btn.className = 'btn btn-primary';
+                btn.onclick = startLearning;
+                btn.disabled = false;
+                logBtn.textContent = 'Start Logging';
+                logBtn.style.background = '#6366f1';
+                logBtn.style.borderColor = '#6366f1';
+                logBtn.onclick = startLogging;
+                logBtn.disabled = false;
+                statusDot.classList.remove('active');
+                statusText.textContent = 'Idle';
+                inputs.forEach(input => input.disabled = false);
+            }
+        }
+
+        function updateStatusDisplay(config) {
+            if (config) {
+                const learnFlagEl = document.getElementById('configLearnFlag');
+                learnFlagEl.textContent = config.learnFlag ? 'TRUE' : 'FALSE';
+                learnFlagEl.className = `config-value ${config.learnFlag ? 'true' : 'false'}`;
+
+                document.getElementById('configTime').textContent = config.time + ' min';
+                document.getElementById('configPhaseName').textContent = config.phaseName || '-';
+                document.getElementById('configDataPath').textContent =
+                    config.phaseName ? `${config.phaseName}_${SOUND_NAME}` : '-';
+
+                const startLearnEl = document.getElementById('configStartLearn');
+                startLearnEl.textContent = config.startLearn ? 'TRUE (Waiting for training)' : 'FALSE';
+                startLearnEl.className = `config-value ${config.startLearn ? 'true' : 'false'}`;
+            }
+        }
+
+        // ============================================
+        // LEARNING CONTROL
+        // ============================================
+        async function startLearning() {
+            const phaseName = document.getElementById('phaseName').value.trim();
+            const learnTime = parseInt(document.getElementById('learnTime').value);
+
+            if (!phaseName) {
+                showMessage('Please enter a phase name', 'error');
+                return;
+            }
+            if (!learnTime || learnTime < 1) {
+                showMessage('Please enter a valid time (minimum 1 minute)', 'error');
+                return;
+            }
+
+            showMessage('Starting learning session...', 'info');
+
+            // Ensure MQTT is connected before sending
+            if (!mqttConnected) {
+                connectMQTT();
+                // Wait a bit for connection
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+
+            // Send MQTT Mode-Learning
+            sendMQTTMode(MODE_LEARNING);
+
+            const success = await updateFirestore(true, learnTime, phaseName, false);
+
+            if (success) {
+                setLearningState(true);
+                showMessage(`Learning started. Data path: ${phaseName}_${SOUND_NAME}`, 'success');
+
+                remainingSeconds = learnTime * 60;
+                updateTimerDisplay(remainingSeconds);
+
+                timerInterval = setInterval(async () => {
+                    remainingSeconds--;
+                    updateTimerDisplay(remainingSeconds);
+
+                    if (remainingSeconds <= 0) {
+                        await finishLearning();
+                    }
+                }, 1000);
+
+                refreshStatus();
+            } else {
+                showMessage('Failed to start learning. Check console for errors.', 'error');
+            }
+        }
+
+        async function stopLearning() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+
+            // Send MQTT Mode-Inference
+            sendMQTTMode(MODE_INFERENCE);
+
+            const phaseName = document.getElementById('phaseName').value.trim();
+            await updateFirestore(false, 0, phaseName, false);
+
+            setLearningState(false);
+            updateTimerDisplay(0);
+            showMessage('Learning stopped manually (training not triggered)', 'info');
+            refreshStatus();
+        }
+
+        async function finishLearning() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+
+            // Send MQTT Mode-Inference (for both learning and logging)
+            sendMQTTMode(MODE_INFERENCE);
+
+            const phaseName = document.getElementById('phaseName').value.trim();
+
+            // Only set StartLearn=true if in learning mode (not logging mode)
+            if (isLoggingMode) {
+                await updateFirestore(false, 0, phaseName, false);
+                setLearningState(false);
+                updateTimerDisplay(0);
+                showMessage('Logging completed! Data collected (no training triggered)', 'success');
+            } else {
+                await updateFirestore(false, 0, phaseName, true);
+                setLearningState(false);
+                updateTimerDisplay(0);
+                showMessage('Learning completed! StartLearn=true - Training will start automatically', 'success');
+            }
+            refreshStatus();
+        }
+
+        // ============================================
+        // LOGGING CONTROL (data collection only, no training)
+        // ============================================
+        async function startLogging() {
+            const phaseName = document.getElementById('phaseName').value.trim();
+            const learnTime = parseInt(document.getElementById('learnTime').value);
+
+            if (!phaseName) {
+                showMessage('Please enter a phase name', 'error');
+                return;
+            }
+            if (!learnTime || learnTime < 1) {
+                showMessage('Please enter a valid time (minimum 1 minute)', 'error');
+                return;
+            }
+
+            showMessage('Starting logging session (no training at end)...', 'info');
+
+            // Send MQTT Mode-Logging
+            sendMQTTMode(MODE_LOGGING);
+
+            const success = await updateFirestore(true, learnTime, phaseName, false);
+
+            if (success) {
+                setLearningState(true, true);  // true = learning active, true = logging mode
+                showMessage(`Logging started. Data path: ${phaseName}_${SOUND_NAME}`, 'success');
+
+                remainingSeconds = learnTime * 60;
+                updateTimerDisplay(remainingSeconds);
+
+                timerInterval = setInterval(async () => {
+                    remainingSeconds--;
+                    updateTimerDisplay(remainingSeconds);
+
+                    if (remainingSeconds <= 0) {
+                        await finishLearning();  // Will check isLoggingMode
+                    }
+                }, 1000);
+
+                refreshStatus();
+            } else {
+                showMessage('Failed to start logging. Check console for errors.', 'error');
+            }
+        }
+
+        async function stopLogging() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+
+            // Send MQTT Mode-Inference
+            sendMQTTMode(MODE_INFERENCE);
+
+            const phaseName = document.getElementById('phaseName').value.trim();
+            await updateFirestore(false, 0, phaseName, false);
+
+            setLearningState(false);
+            updateTimerDisplay(0);
+            showMessage('Logging stopped manually', 'info');
+            refreshStatus();
+        }
+
+        async function refreshStatus() {
+            const config = await readFirestore();
+            updateStatusDisplay(config);
+            return config;
+        }
+
+        // ============================================
+        // LEARN FLAG MONITOR
+        // ============================================
+        // Force stop learning if LearnFlag becomes false externally
+        async function monitorLearnFlag() {
+            if (!isLearning) return;
+
+            const config = await readFirestore();
+            if (config && config.learnFlag === false) {
+                // LearnFlag was set to false externally - force stop
+                console.log('LearnFlag became false externally - force stopping learning');
+
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+
+                setLearningState(false);
+                updateTimerDisplay(0);
+                showMessage('Learning stopped: LearnFlag was set to FALSE externally', 'error');
+            }
+        }
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            // Connect to MQTT broker
+            connectMQTT();
+
+            refreshStatus();
+            refreshSamplesCount();
+            updateCalculatedValues();
+            updateDependentOptions(); // Initialize dependent dropdowns
+
+            setInterval(refreshStatus, 5000);
+            setInterval(refreshSamplesCount, 2000);
+
+            // Monitor LearnFlag every 2 seconds to detect external changes
+            setInterval(monitorLearnFlag, 2000);
+        });
+    </script>
+</body>
+
+</html>
