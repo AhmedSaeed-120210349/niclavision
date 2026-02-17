@@ -770,9 +770,20 @@
         // ============================================
         // MQTT CONFIGURATION
         // ============================================
-        const MQTT_BROKER = "ws://13.61.2.52:9001/mqtt";  // Back to original format
+        // Auto-detect protocol based on page protocol (http vs https)
+        const isSecure = window.location.protocol === 'https:';
+        const MQTT_PROTOCOL = isSecure ? 'wss://' : 'ws://';
+        const MQTT_PORT = isSecure ? '8084' : '9001';  // 8084 for WSS, 9001 for WS
+        const MQTT_BROKER = `${MQTT_PROTOCOL}13.61.2.52:${MQTT_PORT}/mqtt`;
+
         const MQTT_TOPIC_PUBLISH = "nicla/incoming";      // Topic to send commands TO Nicla
         const MQTT_TOPIC_SUBSCRIBE = "nicla/outgoing";    // Topic to receive FROM Nicla
+
+        // Display warning if on HTTPS but broker doesn't support WSS
+        if (isSecure) {
+            console.warn('⚠️ Running on HTTPS - broker must support WSS on port 8084');
+            console.warn('⚠️ If connection fails, ask your engineer to configure SSL/TLS for Mosquitto');
+        }
 
         // MQTT Modes
         const MODE_LEARNING = "Mode-Learning";
